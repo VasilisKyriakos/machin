@@ -6,6 +6,8 @@ import dartpy # OSX breaks if this is imported before RobotDART
 
 class World:
 
+    velocity = 0
+
     def __init__(self):
 
         time_step = 0.001
@@ -54,7 +56,7 @@ class World:
 
 
 
-    def reward(self,angle):
+    def reward2(self,angle):
     
         r = min(angle,2*np.pi-angle)
 
@@ -64,6 +66,16 @@ class World:
         else:
             return [0]
 
+
+    def reward(self,angle,acc,torque):
+
+        ang = min(angle,2*np.pi-angle)/np.pi
+        ac=acc/np.pi
+        torque= torque[0]/25
+    
+        r = (ang**2 + 0.1*ac + 0.001*(torque**2))
+
+        return r
 
 
     def step(self,action):
@@ -82,7 +94,7 @@ class World:
 
         current = current%(2*np.pi)
 
-        rew = self.reward(current)
+        
 
         #print("current: ",current)
 
@@ -90,7 +102,13 @@ class World:
 
         vel = current - prev
 
+        acc = vel - self.velocity
+
+        self.velocity = vel
+
         state = [(current[0]/np.pi)-1,vel[0]*200]
+
+        rew = self.reward(current,acc,action)
 
         #print(vel)
 

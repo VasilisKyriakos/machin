@@ -1,3 +1,6 @@
+from functools import partial
+from inspect import unwrap
+from operator import concat
 from machin.frame.algorithms import PPO
 from machin.utils.logging import default_logger as logger
 from torch.distributions import Categorical
@@ -7,11 +10,13 @@ import gym
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import asyncio
 
 from temp import World
 
 # configurations
-env = World()
+envz = [World(),World(),World(),World(),World(),]
+ppo=None
 observe_dim = 2
 action_num = 2
 max_episodes = 1000
@@ -96,9 +101,67 @@ def debugppo(critic,actor,im1,im2):
 
 
 
+
+async def episodeRun(env,ppo):
+        #print(ppo)
+
+        total_reward = 0
+
+        terminal = False
+
+        step = 0
+
+        state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
+
+
+        tmp_observations = []
+
+        while not terminal and step <= max_steps:
+
+            step += 1
+
+            with t.no_grad():
+
+                old_state = state
+
+                # agent model inference
+
+                action = ppo.act({"state": old_state})
+
+                #print(action)
+
+                action = action[0] #comment
+
+                robaction = [-speed,speed][action.detach()[0]]
+                
+                state, reward, terminal = env.step([robaction])
+
+                reward=reward[0]
+
+                state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
+
+                total_reward += reward
+
+                tmp_observations.append(
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": reward,
+                        "terminal": terminal or step == max_steps,
+                    }
+                )
+
+
+        return total_reward , tmp_observations
+
+
+
 # model definition
 class Actor(nn.Module):
+
     def __init__(self, state_dim, action_num):
+
         super().__init__()
 
         self.fc1 = nn.Linear(state_dim, 16)
@@ -155,8 +218,7 @@ class Critic(nn.Module):
 
 
 
-if __name__ == "__main__":
-
+def initials():
     actor = Actor(observe_dim, action_num)
 
     critic = Critic(observe_dim)
@@ -179,75 +241,41 @@ if __name__ == "__main__":
 
 
 
-    ppo = PPO(actor, critic, t.optim.Adam, nn.MSELoss(reduction="sum"),actor_learning_rate=0.00,
+    ppo = PPO(actor, critic, t.optim.Adam, nn.MSELoss(reduction="sum"),actor_learning_rate=0.1,
 
-                critic_learning_rate=0.01)
+                critic_learning_rate=0.1)
 
+    return ppo, im1, im2, actor, critic
+
+async def main(ppo, im1, im2, actor, critic):
+
+    
 
  
-    episode, step, reward_fulfilled = 0, 0, 0
-
-    smoothed_total_reward = 0
-
+    episode=0
+    #print("main",ppo)
+    eprun=partial(episodeRun,ppo=ppo)
 
 
     while episode < max_episodes:
 
         episode += 1
 
-        total_reward = 0
+        idk = map(eprun,envz)
+        #idk=list(idk)
+        hm=await asyncio.gather(*idk,)
+        totalz, tmpobz = zip(*hm)
+        tmp_observations = [item for sublist in tmpobz for item in sublist]
+        #breakpoint()
 
-        terminal = False
-
-        step = 0
-
-        state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
-
-
-        tmp_observations = []
-
-        while not terminal and step <= max_steps:
-
-            step += 1
-
-            with t.no_grad():
-
-                old_state = state
-
-                # agent model inference
-
-                action = ppo.act({"state": old_state})
-
-                #print(action)
-
-                action = action[0] #comment
-
-                robaction = [-speed,speed][action.detach()[0]]
-                
-                state, reward, terminal = env.step([robaction])
-
-                reward=reward[0]
-
-                state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
-
-                total_reward += reward
-
-                tmp_observations.append(
-                    {
-                        "state": {"state": old_state},
-                        "action": {"action": action},
-                        "next_state": {"state": state},
-                        "reward": reward,
-                        "terminal": terminal or step == max_steps,
-                    }
-                )
+        #total_reward,tmp_observations = episodeRun(envz[0])
 
 
         # update
 
         ppo.store_episode(tmp_observations)
 
-        if episode % 5 == 1:
+        if episode % 1 == 0:
             
             debugppo(critic,actor,im1,im2)
             plt.pause(0.01)
@@ -255,16 +283,9 @@ if __name__ == "__main__":
 
         ppo.update()
 
-
-
-
-        # show reward
-
-        smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
-
-        logger.info(f"Episode {episode} total reward={total_reward:.2f}")
+        logger.info(f"Episode {episode} total reward={totalz}")
     
-
+""" 
         if smoothed_total_reward > solved_reward:
 
             reward_fulfilled += 1
@@ -277,6 +298,11 @@ if __name__ == "__main__":
         else:
 
             reward_fulfilled = 0
+ """
+
+
+if __name__ == "__main__":
+    asyncio.run(main(*(initials())))
 
 
 
