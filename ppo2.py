@@ -220,7 +220,7 @@ if __name__ == "__main__":
 
                 #print(action)
 
-                action = action[0]
+                action = action[0] #comment
 
                 robaction = [-speed,speed][action.detach()[0]]
                 
