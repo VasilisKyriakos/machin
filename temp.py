@@ -18,7 +18,7 @@ class World:
 
         self.simu.set_graphics(graphics)
 
-        graphics.look_at([0., 2.5, 0.5], [0., 0., 0.]) """
+        graphics.look_at([0., 2.5, 0.5], [0., 0., 0.])  """
 
 
         ########## Create robot ##########
