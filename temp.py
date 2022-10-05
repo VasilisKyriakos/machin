@@ -14,11 +14,11 @@ class World:
 
         self.simu = rd.RobotDARTSimu(time_step)
 
-        """ graphics = rd.gui.Graphics()
+        graphics = rd.gui.Graphics()
 
         self.simu.set_graphics(graphics)
 
-        graphics.look_at([0., 2.5, 0.5], [0., 0., 0.])  """
+        graphics.look_at([0., 2.5, 0.5], [0., 0., 0.])
 
 
         ########## Create robot ##########
@@ -31,7 +31,7 @@ class World:
 
         #print(body_names)
 
-        self.robot.set_actuator_types("torque")
+        self.robot.set_actuator_types("servo")
 
         self.start_state = self.robot.set_positions([np.pi/2])
 
@@ -60,20 +60,20 @@ class World:
     
         r = min(angle,2*np.pi-angle)
 
-        if r < np.pi/4:
+        if r < np.pi/8:
             return [10]
         
         else:
             return [0]
 
 
-    def reward(self,angle,acc,torque):
+    def reward(self,angle,acc):
 
-        ang = min(angle,2*np.pi-angle)/np.pi
-        ac=acc/np.pi
-        torque= torque[0]/25
+        ang = min(angle,2*np.pi-angle)
+        ac=acc
+        #torque= torque[0]/25
     
-        r = (ang**2 + 0.1*ac + 0.001*(torque**2))
+        r = -(ang**2 + 0.1*ac)
 
         return r
 
@@ -92,7 +92,7 @@ class World:
 
         current = self.robot.positions()
 
-        current = current%(2*np.pi)
+        #current = current%(2*np.pi)
 
         
 
@@ -100,15 +100,22 @@ class World:
 
         #print("reward: ",rew)
 
+        posx = np.cos(current[0])
+        posy = np.sin(current[0])
+
+
         vel = current - prev
 
-        acc = vel - self.velocity
+        self.acc = vel - self.velocity
 
         self.velocity = vel
 
-        state = [(current[0]/np.pi)-1,vel[0]*200]
+        state = [posx,posy,vel[0]*200]
 
-        rew = self.reward(current,acc,action)
+        #state = [(current[0]/np.pi)-1,vel[0]*200]
+
+
+        rew = self.reward(current,self.acc)
 
         #print(vel)
 
@@ -118,10 +125,14 @@ class World:
     def reset(self):
 
         temp = np.random.rand()*2*np.pi
+
+        temp = 0
         
         current = self.robot.set_positions([temp])  
 
-        state = np.array([(temp/np.pi)-1, 0.])  # pos, vel
+        state = np.array([np.cos(temp),np.sin(temp), 0.])  # pos, vel
+
+        #state = np.array([0., 0.])  # pos, vel
 
         self.done = False
 

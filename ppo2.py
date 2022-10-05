@@ -15,16 +15,18 @@ import asyncio
 from temp import World
 
 # configurations
-envz = [World(),World(),World(),World(),World(),]
+envz = World()
+
 ppo=None
-observe_dim = 2
+
+observe_dim = 3
 action_num = 2
 max_episodes = 1000
 max_steps = 4000
 solved_reward = 50000
 solved_repeat = 5
 
-speed = 50
+speed = 10
 
 
 def heatmap(harvest,harvest2,im1,im2):
@@ -47,11 +49,11 @@ def debugnn(network):
 
         for j in range(50):
 
-            si = (i/24.5)-1
+            si = (i/50)*2*np.pi
 
             sj = (j/24.5)-1
 
-            state = [si,sj]
+            state = [np.cos(si),np.sin(si),sj]
 
             state = t.tensor(state, dtype=t.float32).view(1,observe_dim)
             
@@ -75,11 +77,11 @@ def debugActor(network):
 
         for j in range(50):
 
-            si = (i/24.5)-1
+            si = (i/50)*2*np.pi
 
             sj = (j/24.5)-1
 
-            state = [si,sj]
+            state = [np.cos(si),np.sin(si),sj]
 
             state = t.tensor(state, dtype=t.float32).view(1,observe_dim)
             
@@ -102,7 +104,7 @@ def debugppo(critic,actor,im1,im2):
 
 
 
-async def episodeRun(env,ppo):
+def episodeRun(env,ppo):
         #print(ppo)
 
         total_reward = 0
@@ -164,15 +166,15 @@ class Actor(nn.Module):
 
         super().__init__()
 
-        self.fc1 = nn.Linear(state_dim, 16)
-        self.fc2 = nn.Linear(16, 16)
-        self.fc3 = nn.Linear(16, action_num)
+        self.fc1 = nn.Linear(state_dim, 5)
+        self.fc2 = nn.Linear(5, 5)
+        self.fc3 = nn.Linear(5, action_num)
 
     def forward(self, state, action=None):
 
-        a = t.relu(self.fc1(state))
+        a = (self.fc1(state))
 
-        a = t.relu(self.fc2(a))
+        a = (self.fc2(a))
 
         probs = t.softmax(self.fc3(a), dim=1)
 
@@ -241,34 +243,28 @@ def initials():
 
 
 
-    ppo = PPO(actor, critic, t.optim.Adam, nn.MSELoss(reduction="sum"),actor_learning_rate=0.1,
+    ppo = PPO(actor, critic, t.optim.Adam, nn.MSELoss(reduction="sum"),actor_learning_rate=0.01,
 
-                critic_learning_rate=0.1)
+                critic_learning_rate=0.01)
 
     return ppo, im1, im2, actor, critic
 
-async def main(ppo, im1, im2, actor, critic):
-
-    
-
+def main(ppo, im1, im2, actor, critic):
  
     episode=0
-    #print("main",ppo)
-    eprun=partial(episodeRun,ppo=ppo)
-
 
     while episode < max_episodes:
 
         episode += 1
 
-        idk = map(eprun,envz)
+        """ idk = map(eprun,envz)
         #idk=list(idk)
         hm=await asyncio.gather(*idk,)
         totalz, tmpobz = zip(*hm)
         tmp_observations = [item for sublist in tmpobz for item in sublist]
-        #breakpoint()
+        #breakpoint() """
 
-        #total_reward,tmp_observations = episodeRun(envz[0])
+        total_reward,tmp_observations = episodeRun(envz,ppo)
 
 
         # update
@@ -283,7 +279,7 @@ async def main(ppo, im1, im2, actor, critic):
 
         ppo.update()
 
-        logger.info(f"Episode {episode} total reward={totalz}")
+        logger.info(f"Episode {episode} total reward={total_reward}")
     
 """ 
         if smoothed_total_reward > solved_reward:
@@ -302,7 +298,7 @@ async def main(ppo, im1, im2, actor, critic):
 
 
 if __name__ == "__main__":
-    asyncio.run(main(*(initials())))
+    main(*(initials()))
 
 
 
