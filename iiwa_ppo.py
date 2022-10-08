@@ -5,19 +5,28 @@ import torch as t
 import torch.nn as nn
 import gym
 
+import pickle
 from iiwa import Iiwa_World
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import time
+
+
+
 
 # configurations
 env = Iiwa_World()
 observe_dim = 7
 action_num = 128
-max_episodes = 5000
+max_episodes = 18
 max_steps = 2000
 solved_reward = -100
 solved_repeat = 1000000
+demo_count=3
+sample_freq = 4
+
+identifier="iiwappo"
 
 moves= np.vstack([np.eye(7),-np.eye(7)])*10000
 
@@ -26,6 +35,9 @@ def mover(i):
     te=np.array(tt)*2-1
     return te
 
+
+tot_reward = []
+demos_all=[]
 
 # model definition
 class Actor(nn.Module):
@@ -65,6 +77,8 @@ class Critic(nn.Module):
 
 
 if __name__ == "__main__":
+    start_time = time.time()
+
     
     actor = Actor(observe_dim, action_num)
     critic = Critic(observe_dim)
@@ -74,36 +88,51 @@ if __name__ == "__main__":
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
 
+    def run_episode():
+            total_reward = 0
+            terminal = False
+            step = 0
+            tmp_observations = []
+            state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
+            while not terminal and step <= max_steps:
+                step += 1
+                with t.no_grad():
+                    old_state = state
+                    # agent model inference
+                    action = ppo.act({"state": old_state})[0]
+                    state, reward, terminal = env.step(mover(action.item()))
+                    state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
+                    total_reward += reward
+
+                    
+
+                    tmp_observations.append(
+                        {
+                            "state": {"state": old_state},
+                            "action": {"action": action},
+                            "next_state": {"state": state},
+                            "reward": reward,
+                            "terminal": terminal or step == max_steps,
+                        }
+                    )
+            return tmp_observations, total_reward
+
     while episode < max_episodes:
+
         episode += 1
-        total_reward = 0
-        terminal = False
-        step = 0
-        state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
-
-        tmp_observations = []
-        while not terminal and step <= max_steps:
-            step += 1
-            with t.no_grad():
-                old_state = state
-                # agent model inference
-                action = ppo.act({"state": old_state})[0]
-                state, reward, terminal = env.step(mover(action.item()))
-                state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
-                total_reward += reward
-
-                tmp_observations.append(
-                    {
-                        "state": {"state": old_state},
-                        "action": {"action": action},
-                        "next_state": {"state": state},
-                        "reward": reward,
-                        "terminal": terminal or step == max_steps,
-                    }
-                )
-
+        tmp_observations, total_reward = run_episode()
+        
         # update
         ppo.store_episode(tmp_observations)
+        tot_reward.append(total_reward)
+
+        if(episode%sample_freq==1):
+            #run expected reward
+            run_eps = [run_episode()[1] for _ in range(demo_count)]
+            demos_all.append(run_eps)
+            
+
+            
         ppo.update()
 
         # show reward
@@ -117,3 +146,10 @@ if __name__ == "__main__":
                 exit(0)
         else:
             reward_fulfilled = 0
+
+    # store results
+    duration=(time.time() - start_time)
+    results={"dur":duration,"rewards":tot_reward,"evaluations":demos_all}
+    with open(identifier,"wb") as f:
+        pickle.dump(results,f)
+        
