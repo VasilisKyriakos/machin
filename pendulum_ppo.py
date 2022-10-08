@@ -12,7 +12,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import asyncio
 
-from temp import World
+from pendulum import World
 
 # configurations
 envz = World()
@@ -21,10 +21,10 @@ ppo=None
 
 observe_dim = 3
 action_num = 2
-max_episodes = 1000
-max_steps = 4000
+max_episodes = 5000
+max_steps = 2000
 solved_reward = 50000
-solved_repeat = 5
+solved_repeat = 1000000
 
 speed = 10
 

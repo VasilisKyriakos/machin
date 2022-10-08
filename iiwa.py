@@ -1,3 +1,4 @@
+from importlib.util import set_loader
 import numpy as np
 import RobotDART as rd
 import dartpy # OSX breaks if this is imported before RobotDART
@@ -32,7 +33,7 @@ class Iiwa_World:
 
         body_names = self.robot.dof_names()
 
-        #print(body_names)
+        print(body_names)
 
         self.robot.set_actuator_types("servo")
 
@@ -59,9 +60,12 @@ class Iiwa_World:
 
 
         self.goal_robot = rd.Robot.create_ellipsoid(dims=[0.1,0.1,0.1], 
-                            pose=self.robot.body_pose_vec(eef_link_name), color=[0., 1., 0., 0.5], ellipsoid_name="target")
 
-        self.simu.add_robot(self.goal_robot)
+                            pose=self.robot.body_pose_vec(eef_link_name), color=[0., 1., 0., 0.5], 
+                            
+                                ellipsoid_name="target")
+
+        self.simu.add_visual_robot(self.goal_robot)
 
         self.goal_robot.fix_to_world()
 
@@ -84,7 +88,8 @@ class Iiwa_World:
 
             break """
 
-        
+
+
 
         #self.robot.set_commands([-5])
 
@@ -94,21 +99,30 @@ class Iiwa_World:
 
         self.robot.set_positions(enforce_joint_limits(self.robot, positions))
 
-        current = np.array(self.robot.positions())  # pos, vel
+        current = np.array(copy.copy(self.robot.positions()))  # pos, vel
+
         state = self.target_positions- current
 
-        self.done = False
+        eef_link_name = "iiwa_link_ee"
+
+        cur_eef = self.robot.body_pose(eef_link_name).translation()
+
+ 
 
         return state
 
 
 
     def reward(self,eefpose):
-        return -(np.linalg.norm(self.tee-eefpose))
+        #print((np.linalg.norm(eefpose- self.tee)))
+
+        return -(np.linalg.norm(eefpose- self.tee))
 
 
 
     def step(self,action):
+
+        self.done = False
 
         self.robot.set_commands(enforce_joint_limits(self.robot,action))
 
@@ -116,9 +130,9 @@ class Iiwa_World:
 
         self.simu.step_world()
 
-        current = self.robot.positions()
+        current = copy.copy(self.robot.positions())
 
-        state = self.target_positions- current
+        state = self.target_positions - current
 
         #print(f"****state*****{state}")
 
@@ -127,7 +141,7 @@ class Iiwa_World:
         cur_eef = self.robot.body_pose(eef_link_name).translation()
 
         rew = self.reward(cur_eef)
-
+            
         return state, rew, self.done
 
 

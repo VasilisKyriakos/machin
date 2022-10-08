@@ -3,26 +3,34 @@ from machin.utils.logging import default_logger as logger
 import torch as t
 import torch.nn as nn
 import gym
+from iiwa import Iiwa_World
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
 
-from temp import World
+
+
+crp, = plt.plot([], [])
+rep, = plt.plot([], [])
 
 # configurations
-env = World()
-observe_dim = 3
-action_dim = 1
-action_range = 50
-max_episodes = 1000
+env = Iiwa_World()
+observe_dim = 7
+action_dim = 7
+action_range = 10
+max_episodes = 5000
 max_steps = 2000
 noise_param = (0, 0.2)
 noise_mode = "normal"
-solved_reward = 0
-solved_repeat = 50000
+solved_reward = -100
+solved_repeat = 10
 
 
 # model definition
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, action_range):
         super().__init__()
+
         self.fc1 = nn.Linear(state_dim, 16)
         self.fc2 = nn.Linear(16, 16)
         self.fc3 = nn.Linear(16, action_dim)
@@ -33,6 +41,19 @@ class Actor(nn.Module):
         a = t.relu(self.fc2(a))
         a = t.tanh(self.fc3(a)) * self.action_range
         return a
+
+
+""" class Actor(nn.Module):
+    def __init__(self, state_dim, action_dim, action_range):
+        super().__init__()
+
+        self.fc1 = nn.Linear(state_dim, action_dim)
+        self.action_range = action_range """
+
+
+
+"""     def forward(self, state):
+        return self.fc1(state) """
 
 
 class Critic(nn.Module):
@@ -51,6 +72,30 @@ class Critic(nn.Module):
         return q
 
 
+""" class Critic1(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super().__init__()
+
+        self.fc1 = nn.Linear(state_dim + action_dim, 1)
+
+    def forward(self, state, action):
+        state_action = t.cat([state, action], 1)
+        q = (self.fc1(state_action))
+        return q
+
+class Critic2(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super().__init__()
+
+        self.fc1 = nn.Linear(state_dim + action_dim, 7)
+        self.fc2 = nn.Linear(7,1)
+
+
+    def forward(self, state, action):
+        
+        return q """
+
+
 if __name__ == "__main__":
     actor = Actor(observe_dim, action_dim, action_range)
     actor_t = Actor(observe_dim, action_dim, action_range)
@@ -67,9 +112,8 @@ if __name__ == "__main__":
         critic2,
         critic2_t,
         t.optim.Adam,
-        nn.MSELoss(reduction="sum"),actor_learning_rate=0.1,
-                critic_learning_rate=0.1
-    )
+        nn.MSELoss(reduction="sum"),actor_learning_rate=0.01,
+                critic_learning_rate=0.01)
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
@@ -81,30 +125,35 @@ if __name__ == "__main__":
         step = 0
         state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
         tmp_observations = []
+        judgements = []
+        rewards = []
 
         while not terminal and step <= max_steps:
             step += 1
             with t.no_grad():
                 old_state = state
                 # agent model inference
-                action = td3.act(
-                    {"state": old_state})
-                state, reward, terminal = env.step(action.numpy())
+                action = td3.act_with_noise(
+                    {"state": old_state}, noise_param=noise_param, mode=noise_mode
+                )
+                #print(action)
+                state, reward, terminal = env.step(action.numpy()[0])
                 state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
-                total_reward += reward[0]
+                total_reward += reward
+                
 
                 tmp_observations.append(
                     {
                         "state": {"state": old_state},
                         "action": {"action": action},
                         "next_state": {"state": state},
-                        "reward": reward[0],
+                        "reward": reward,
                         "terminal": terminal or step == max_steps,
                     }
                 )
 
         td3.store_episode(tmp_observations)
-        # update, update more if episode is longer, else less
+
         if episode > 100:
             for _ in range(step):
                 td3.update()
@@ -120,3 +169,21 @@ if __name__ == "__main__":
                 exit(0)
         else:
             reward_fulfilled = 0
+
+
+
+def heatmap(judgements,rewards):
+
+    update_line(crp,judgements)
+    update_line(rep,rewards)
+    plt.draw()
+
+
+
+
+def update_line(hl, new_data):
+    hl.set_xdata(np.arange(len(new_data)))
+    hl.set_ydata(new_data)
+    
+
+

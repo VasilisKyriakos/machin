@@ -31,7 +31,7 @@ class World:
 
         #print(body_names)
 
-        self.robot.set_actuator_types("servo")
+        self.robot.set_actuator_types("torque")
 
         self.start_state = self.robot.set_positions([np.pi/2])
 
