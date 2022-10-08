@@ -19,12 +19,12 @@ import time
 env = Iiwa_World()
 observe_dim = 7
 action_num = 128
-max_episodes = 18
+max_episodes = 1000
 max_steps = 2000
 solved_reward = -100
 solved_repeat = 1000000
-demo_count=3
-sample_freq = 4
+demo_count = 10
+sample_freq = 100
 
 identifier="iiwappo"
 
@@ -150,6 +150,7 @@ if __name__ == "__main__":
     # store results
     duration=(time.time() - start_time)
     results={"dur":duration,"rewards":tot_reward,"evaluations":demos_all}
-    with open(identifier,"wb") as f:
+    with open(identifier+str(start_time),"wb") as f:
         pickle.dump(results,f)
         
+
