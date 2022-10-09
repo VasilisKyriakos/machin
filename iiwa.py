@@ -18,11 +18,11 @@ class Iiwa_World:
 
         self.simu = rd.RobotDARTSimu(time_step)
 
-        graphics = rd.gui.Graphics()
+        #graphics = rd.gui.Graphics()
 
-        self.simu.set_graphics(graphics)
+        #self.simu.set_graphics(graphics)
 
-        graphics.look_at([0., 2.5, 0.5], [0., 0., 0.])
+        #graphics.look_at([0., 2.5, 0.5], [0., 0., 0.])
 
 
         ########## Create robot ##########

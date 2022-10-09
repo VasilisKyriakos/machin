@@ -3,7 +3,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
-sam_f=4
+sam_f = 4
 
 def graph(filenames):
     data=[]
@@ -21,20 +21,17 @@ def graph(filenames):
     ll = len(expectz)
 
     durs = [d["dur"] for d in data]
-
-    
     fig , axis = plt.subplots(1,2)
 
-    axis[0].plot(np.array(range(ll))*sam_f+1,expectz,)
-    axis[0].hlines(q1,1,(ll-1)*sam_f+1)
-    axis[0].hlines(q2,1,(ll-1)*sam_f+1)
-    axis[0].hlines(q3,1,(ll-1)*sam_f+1)
-
+    axis[0].plot(np.array(range(ll))*sam_f+1,expectz,color='green',label='Expected Return')
+    axis[0].hlines(q1,1,(ll-1)*sam_f+1,color='blue',label='First Quartile')
+    axis[0].hlines(q2,1,(ll-1)*sam_f+1,color='red',label='Median')
+    axis[0].hlines(q3,1,(ll-1)*sam_f+1,color='black',label='Third Quirtile')
     axis[1].boxplot(durs)
+    axis[0].legend(loc='center right', bbox_to_anchor=(0, 0.5))
 
     plt.show()
-
-
+    
 
     return expects
     

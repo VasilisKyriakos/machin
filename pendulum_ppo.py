@@ -6,27 +6,34 @@ from machin.utils.logging import default_logger as logger
 from torch.distributions import Categorical
 import torch as t
 import torch.nn as nn
-import gym
+
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import asyncio
 
+import time
+import pickle
+
 from pendulum import World
 
 # configurations
 envz = World()
-
+identifier="pendulum_ppo"
 ppo=None
 
 observe_dim = 3
 action_num = 2
-max_episodes = 5000
-max_steps = 2000
+max_episodes = 1000
+max_steps = 1000
 solved_reward = 50000
 solved_repeat = 1000000
-
+demo_count = 10
+sample_freq = 100
 speed = 10
+
+tot_reward = []
+demos_all=[]
 
 
 def heatmap(harvest,harvest2,im1,im2):
@@ -34,11 +41,9 @@ def heatmap(harvest,harvest2,im1,im2):
     
     im1.set_data(harvest)
     im2.set_data(harvest2)
-
     im1.set_clim(np.min(harvest),np.max(harvest))
     im2.set_clim()
-
-    plt.draw()
+    #plt.draw()
 
 
 def debugnn(network):
@@ -104,59 +109,6 @@ def debugppo(critic,actor,im1,im2):
 
 
 
-def episodeRun(env,ppo):
-        #print(ppo)
-
-        total_reward = 0
-
-        terminal = False
-
-        step = 0
-
-        state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
-
-
-        tmp_observations = []
-
-        while not terminal and step <= max_steps:
-
-            step += 1
-
-            with t.no_grad():
-
-                old_state = state
-
-                # agent model inference
-
-                action = ppo.act({"state": old_state})
-
-                #print(action)
-
-                action = action[0] #comment
-
-                robaction = [-speed,speed][action.detach()[0]]
-                
-                state, reward, terminal = env.step([robaction])
-
-                reward=reward[0]
-
-                state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
-
-                total_reward += reward
-
-                tmp_observations.append(
-                    {
-                        "state": {"state": old_state},
-                        "action": {"action": action},
-                        "next_state": {"state": state},
-                        "reward": reward,
-                        "terminal": terminal or step == max_steps,
-                    }
-                )
-
-
-        return total_reward , tmp_observations
-
 
 
 # model definition
@@ -196,31 +148,22 @@ class Critic(nn.Module):
     def __init__(self, state_dim):
 
         super().__init__()
-
         self.fc1 = nn.Linear(state_dim, 16)
-
         self.fc2 = nn.Linear(16, 16)
-
         self.fc3 = nn.Linear(16, 1)
-
-
 
     def forward(self, state):
 
         v = t.relu(self.fc1(state))
-
         v = t.relu(self.fc2(v))
-
         v = self.fc3(v)
-
-        #print(state)
-
         return v
 
 
+if __name__ == "__main__":
 
+    start_time = time.time()
 
-def initials():
     actor = Actor(observe_dim, action_num)
 
     critic = Critic(observe_dim)
@@ -239,49 +182,91 @@ def initials():
     plt.ylabel('velocity')
     plt.xlabel('position')
 
-    plt.show(block=False)
-
+    #plt.show(block=False)
 
 
     ppo = PPO(actor, critic, t.optim.Adam, nn.MSELoss(reduction="sum"),actor_learning_rate=0.01,
 
                 critic_learning_rate=0.01)
 
-    return ppo, im1, im2, actor, critic
-
-def main(ppo, im1, im2, actor, critic):
- 
+    episode, step, reward_fulfilled = 0, 0, 0
+    smoothed_total_reward = 0
+    
+    start_time = time.time()
     episode=0
+
+
+    def episodeRun():
+
+        total_reward = 0
+        terminal = False
+        step = 0
+        state = t.tensor(envz.reset(), dtype=t.float32).view(1, observe_dim)
+        tmp_observations = []
+
+        while not terminal and step <= max_steps:
+
+            step += 1
+
+            with t.no_grad():
+
+                old_state = state
+
+                # agent model inference
+
+                action = ppo.act({"state": old_state})
+
+                #print(action)
+
+                action = action[0] #comment
+
+                robaction = [-speed,speed][action.detach()[0]]
+                
+                state, reward, terminal = envz.step([robaction])
+
+                reward=reward[0]
+
+                state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
+
+                total_reward += reward
+
+                tmp_observations.append(
+                    {
+                        "state": {"state": old_state},
+                        "action": {"action": action},
+                        "next_state": {"state": state},
+                        "reward": reward,
+                        "terminal": terminal or step == max_steps,
+                    }
+                )
+
+        return total_reward , tmp_observations
+
 
     while episode < max_episodes:
 
         episode += 1
+        total_reward,tmp_observations = episodeRun()
 
-        """ idk = map(eprun,envz)
-        #idk=list(idk)
-        hm=await asyncio.gather(*idk,)
-        totalz, tmpobz = zip(*hm)
-        tmp_observations = [item for sublist in tmpobz for item in sublist]
-        #breakpoint() """
+        tot_reward.append(total_reward)
 
-        total_reward,tmp_observations = episodeRun(envz,ppo)
-
-
-        # update
+        if(episode%sample_freq==1):
+            #run expected reward
+            run_eps = [episodeRun()[0] for _ in range(demo_count)]
+            demos_all.append(run_eps)
 
         ppo.store_episode(tmp_observations)
 
-        if episode % 1 == 0:
+        """   if episode % 1 == 0:
             
             debugppo(critic,actor,im1,im2)
-            plt.pause(0.01)
-
+            plt.pause(0.01) """
 
         ppo.update()
 
-        logger.info(f"Episode {episode} total reward={total_reward}")
-    
-""" 
+        smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
+        logger.info(f"Episode {episode} total reward={total_reward:.2f}")    
+ 
         if smoothed_total_reward > solved_reward:
 
             reward_fulfilled += 1
@@ -294,11 +279,16 @@ def main(ppo, im1, im2, actor, critic):
         else:
 
             reward_fulfilled = 0
- """
+
+    # store results
+    duration=(time.time() - start_time)
+    results={"dur":duration,"rewards":tot_reward,"evaluations":demos_all}
+    with open(identifier+str(int(start_time)),"wb") as f:
+        pickle.dump(results,f)
+ 
 
 
-if __name__ == "__main__":
-    main(*(initials()))
+
 
 
 

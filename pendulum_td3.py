@@ -2,26 +2,33 @@ from machin.frame.algorithms import TD3
 from machin.utils.logging import default_logger as logger
 import torch as t
 import torch.nn as nn
-import gym
 
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import asyncio
-
 from pendulum import World
+import pickle
+import time
+
 
 # configurations
 env = World()
 observe_dim = 3
 action_dim = 1
-action_range = 2
-max_episodes = 5000
-max_steps = 2000
+action_range = 10
+max_episodes = 1000
+max_steps = 1000
 noise_param = (0, 0.2)
 noise_mode = "normal"
-solved_reward = -150
+solved_reward = -100
 solved_repeat = 1000000
+
+sample_freq = 100
+demo_count = 10
+identifier="pendulum_td3"
+
+tot_reward = []
+demos_all=[]
 
 
 # model definition
@@ -58,6 +65,9 @@ class Critic(nn.Module):
 
 
 if __name__ == "__main__":
+
+    start_time = time.time()
+
     actor = Actor(observe_dim, action_dim, action_range)
     actor_t = Actor(observe_dim, action_dim, action_range)
     critic = Critic(observe_dim, action_dim)
@@ -73,14 +83,14 @@ if __name__ == "__main__":
         critic2,
         critic2_t,
         t.optim.Adam,
-        nn.MSELoss(reduction="sum"),
-    )
+        nn.MSELoss(reduction="sum"),actor_learning_rate=0.01,
+                critic_learning_rate=0.01)
 
     episode, step, reward_fulfilled = 0, 0, 0
     smoothed_total_reward = 0
 
-    while episode < max_episodes:
-        episode += 1
+    def run_episode():
+
         total_reward = 0
         terminal = False
         step = 0
@@ -108,8 +118,22 @@ if __name__ == "__main__":
                         "terminal": terminal or step == max_steps,
                     }
                 )
+        return tmp_observations, total_reward
+
+
+    while episode < max_episodes:
+
+        episode += 1
+        tmp_observations, total_reward = run_episode()
 
         td3.store_episode(tmp_observations)
+        tot_reward.append(total_reward)
+
+        if(episode%sample_freq==1):
+            #run expected reward
+            run_eps = [run_episode()[1] for _ in range(demo_count)]
+            demos_all.append(run_eps)
+
         # update, update more if episode is longer, else less
         if episode > 100:
             for _ in range(step):
@@ -117,7 +141,7 @@ if __name__ == "__main__":
 
         # show reward
         smoothed_total_reward = smoothed_total_reward * 0.9 + total_reward * 0.1
-        logger.info(f"Episode {episode} total reward={smoothed_total_reward:.2f}")
+        logger.info(f"Episode {episode} total reward={total_reward:.2f}")
 
         if smoothed_total_reward > solved_reward:
             reward_fulfilled += 1
@@ -126,3 +150,10 @@ if __name__ == "__main__":
                 exit(0)
         else:
             reward_fulfilled = 0
+
+    # store results
+    duration=(time.time() - start_time)
+    results={"dur":duration,"rewards":tot_reward,"evaluations":demos_all}
+    with open(identifier+str(int(start_time)),"wb") as f:
+        pickle.dump(results,f)
+        

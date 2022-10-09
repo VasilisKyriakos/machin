@@ -3,7 +3,6 @@ from machin.utils.logging import default_logger as logger
 from torch.distributions import Categorical
 import torch as t
 import torch.nn as nn
-import gym
 
 import pickle
 from iiwa import Iiwa_World
@@ -13,22 +12,22 @@ import numpy as np
 import time
 
 
-
-
 # configurations
 env = Iiwa_World()
 observe_dim = 7
 action_num = 128
 max_episodes = 1000
-max_steps = 2000
+max_steps = 1000
 solved_reward = -100
 solved_repeat = 1000000
 demo_count = 10
 sample_freq = 100
 
-identifier="iiwappo"
+
+identifier="iiwa_ppo"
 
 moves= np.vstack([np.eye(7),-np.eye(7)])*10000
+
 
 def mover(i):
     tt=[int(dig) for dig in "{0:b}".format(i).rjust(7,'0')]
@@ -38,6 +37,7 @@ def mover(i):
 
 tot_reward = []
 demos_all=[]
+
 
 # model definition
 class Actor(nn.Module):
@@ -59,6 +59,7 @@ class Actor(nn.Module):
         act_entropy = dist.entropy()
         act_log_prob = dist.log_prob(act.flatten())
         return act, act_log_prob, act_entropy
+
 
 
 class Critic(nn.Module):
@@ -89,6 +90,7 @@ if __name__ == "__main__":
     smoothed_total_reward = 0
 
     def run_episode():
+
             total_reward = 0
             terminal = False
             step = 0
@@ -104,8 +106,7 @@ if __name__ == "__main__":
                     state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
                     total_reward += reward
 
-                    
-
+                
                     tmp_observations.append(
                         {
                             "state": {"state": old_state},
@@ -131,8 +132,7 @@ if __name__ == "__main__":
             run_eps = [run_episode()[1] for _ in range(demo_count)]
             demos_all.append(run_eps)
             
-
-            
+  
         ppo.update()
 
         # show reward
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     # store results
     duration=(time.time() - start_time)
     results={"dur":duration,"rewards":tot_reward,"evaluations":demos_all}
-    with open(identifier+str(start_time),"wb") as f:
+    with open(identifier+str(int(start_time)),"wb") as f:
         pickle.dump(results,f)
         
 

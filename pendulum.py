@@ -14,11 +14,11 @@ class World:
 
         self.simu = rd.RobotDARTSimu(time_step)
 
-        graphics = rd.gui.Graphics()
+        #graphics = rd.gui.Graphics()
 
-        self.simu.set_graphics(graphics)
+        #self.simu.set_graphics(graphics)
 
-        graphics.look_at([0., 2.5, 0.5], [0., 0., 0.])
+        #graphics.look_at([0., 2.5, 0.5], [0., 0., 0.])
 
 
         ########## Create robot ##########
@@ -42,20 +42,6 @@ class World:
         self.simu.add_robot(self.robot)
 
 
-    """         while True:
-
-                if simu.step_world():
-                    break
-
-                pos = self.robot.positions()
-                
-                print(pos)
-
-                #self.robot.set_commands([-5]) """
-
-
-
-
     def reward2(self,angle):
     
         r = min(angle,2*np.pi-angle)
@@ -69,76 +55,52 @@ class World:
 
     def reward(self,angle,acc):
 
-        ang = min(angle,2*np.pi-angle)
-        ac=acc
         #torque= torque[0]/25
-    
-        r = -(ang**2 + 0.1*ac)
-
+        ang = min(angle,2*np.pi-angle)
+        r = -(ang**2 + 0.1*acc)
         return r
 
 
     def step(self,action):
 
         prev = self.robot.positions()
-
         prev = prev%(2*np.pi)
-
         self.robot.set_commands(action)
 
         #print(action)
 
         self.simu.step_world()
-
         current = self.robot.positions()
 
         #current = current%(2*np.pi)
-
-        
-
         #print("current: ",current)
-
         #print("reward: ",rew)
 
         posx = np.cos(current[0])
         posy = np.sin(current[0])
 
-
         vel = current - prev
-
         self.acc = vel - self.velocity
-
         self.velocity = vel
-
         state = [posx,posy,vel[0]*200]
 
         #state = [(current[0]/np.pi)-1,vel[0]*200]
 
-
         rew = self.reward(current,self.acc)
-
-        #print(vel)
-
         return state, rew, self.done
     
 
     def reset(self):
 
-        temp = np.random.rand()*2*np.pi
-
-        temp = 0
-        
+        #temp = np.random.rand()*2*np.pi
+        temp = np.pi
         current = self.robot.set_positions([temp])  
-
         state = np.array([np.cos(temp),np.sin(temp), 0.])  # pos, vel
-
         #state = np.array([0., 0.])  # pos, vel
-
         self.done = False
 
         return state
 
-        
     ########## Give a small push to the robot ##########
     #robot.set_external_torque(robot.body_name(1), [0., 0.01, 0.])
 
